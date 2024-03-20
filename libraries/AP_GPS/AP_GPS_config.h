@@ -26,10 +26,6 @@
 #if GPS_MAX_RECEIVERS <= 1 && GPS_MAX_INSTANCES > 1
 #error "GPS_MAX_INSTANCES should be 1 for GPS_MAX_RECEIVERS <= 1"
 #endif
-
-#if GPS_MAX_INSTANCES > GPS_MAX_RECEIVERS
-#define GPS_BLENDED_INSTANCE GPS_MAX_RECEIVERS  // the virtual blended GPS is always the highest instance (2)
-#endif
 #endif
 
 #ifndef AP_GPS_BACKEND_DEFAULT_ENABLED
@@ -37,7 +33,10 @@
 #endif
 
 #ifndef AP_GPS_BLENDED_ENABLED
-#define AP_GPS_BLENDED_ENABLED AP_GPS_BACKEND_DEFAULT_ENABLED && defined(GPS_BLENDED_INSTANCE)
+#define AP_GPS_BLENDED_ENABLED AP_GPS_BACKEND_DEFAULT_ENABLED && GPS_MAX_INSTANCES > GPS_MAX_RECEIVERS
+#if AP_GPS_BLENDED_ENABLED
+#define GPS_BLENDED_INSTANCE GPS_MAX_RECEIVERS  // the virtual blended GPS is always the highest instance (2)
+#endif
 #endif
 
 #ifndef AP_GPS_DRONECAN_ENABLED
