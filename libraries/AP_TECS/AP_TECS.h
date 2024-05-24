@@ -134,6 +134,12 @@ public:
         _pitch_max_limit = pitch_limit;
     }
 
+    // set minimum throttle override, 0-1 range
+    // it is applicable for one control cycle only
+    void set_min_throttle(const float thr) {
+        _THRminOverride = thr;
+    }
+
     // force use of synthetic airspeed for one loop
     void use_synthetic_airspeed(void) {
         _use_synthetic_airspeed_once = true;
@@ -360,6 +366,8 @@ private:
     // Maximum and minimum floating point throttle limits
     float _THRmaxf;
     float _THRminf;
+    // External override for minimum throttle.
+    float _THRminOverride;
 
     // Maximum and minimum floating point pitch limits
     float _PITCHmaxf;
@@ -418,6 +426,9 @@ private:
 
     // need to reset on next loop
     bool _need_reset;
+
+    // Checks if we reset at the beginning of takeoff.
+    bool _flag_have_reset_after_takeoff;
 
     float _SKE_weighting;
 
@@ -478,4 +489,8 @@ private:
 
     // current time constant
     float timeConstant(void) const;
+
+    // Reply if we are in the first stage of a takeoff
+    // Corresponds to the initial full-throttle segment
+    bool _in_takeoff_first_stage(void);
 };
