@@ -148,9 +148,9 @@ void ModeTakeoff::update()
 
     if (plane.flight_stage == AP_FixedWing::FlightStage::TAKEOFF) {
         //below TAKOFF_LVL_ALT
-        SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, 100.0);
         plane.takeoff_calc_roll();
         plane.takeoff_calc_pitch();
+        plane.takeoff_calc_throttle();
     } else {
         if ((altitude_cm >= alt * 100 - 200)) { //within 2m of TKOFF_ALT ,or above and loitering
 #if AP_FENCE_ENABLED

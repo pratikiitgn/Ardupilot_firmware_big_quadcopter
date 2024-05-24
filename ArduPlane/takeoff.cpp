@@ -219,6 +219,21 @@ void Plane::takeoff_calc_pitch(void)
 }
 
 /*
+ * Set minimum throttle to run at during a takeoff.
+ * This is typically invoked by TAKEOFF mode.
+ */
+void Plane::takeoff_calc_throttle() {
+    float max_throttle = aparm.throttle_max * 0.01f;
+    if (aparm.takeoff_throttle_max != 0) {
+        max_throttle = aparm.takeoff_throttle_max * 0.01f;
+    }
+    // This setting will take effect at the next run of TECS::update_pitch_throttle().
+    TECS_controller.set_min_throttle(max_throttle);
+
+    calc_throttle();
+}
+
+/*
  * get the pitch min used during takeoff. This matches the mission pitch until near the end where it allows it to levels off
  */
 int16_t Plane::get_takeoff_pitch_min_cd(void)
