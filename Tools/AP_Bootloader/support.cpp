@@ -467,6 +467,41 @@ void init_uarts(void)
 }
 
 
+#if defined(BOOTLOADER_FORWARD_OTG2_SERIAL)
+/* forward serial to OTG2
+Used for devices containing multiple devices in one
+*/
+static SerialConfig forward_sercfg;
+static uint32_t otg2_serial_deadline_ms;
+bool update_otg2_serial_forward()
+{
+    // get baudrate set on SDU2 and set it on HAL_FORWARD_OTG2_SERIAL if changed
+    if (forward_sercfg.speed != BOOTLOADER_FORWARD_OTG2_SERIAL_BAUDRATE) {
+        forward_sercfg.speed = BOOTLOADER_FORWARD_OTG2_SERIAL_BAUDRATE;
+#if defined(BOOTLOADER_FORWARD_OTG2_SERIAL_SWAP) && BOOTLOADER_FORWARD_OTG2_SERIAL_SWAP
+        forward_sercfg.cr2 = USART_CR2_SWAP;
+#endif
+        sdStart(&BOOTLOADER_FORWARD_OTG2_SERIAL, &forward_sercfg);
+    }
+    // check how many bytes are available to read from HAL_FORWARD_OTG2_SERIAL
+    uint8_t data[SERIAL_BUFFERS_SIZE]; // read upto SERIAL_BUFFERS_SIZE at a time
+    int n = chnReadTimeout(&SDU2, data, SERIAL_BUFFERS_SIZE, TIME_IMMEDIATE);
+    if (n > 0) {
+        // do a blocking write to HAL_FORWARD_OTG2_SERIAL
+        chnWriteTimeout(&BOOTLOADER_FORWARD_OTG2_SERIAL, data, n, TIME_IMMEDIATE);
+        otg2_serial_deadline_ms = AP_HAL::millis() + 1000;
+    }
+
+    n = chnReadTimeout(&BOOTLOADER_FORWARD_OTG2_SERIAL, data, SERIAL_BUFFERS_SIZE, TIME_IMMEDIATE);
+    if (n > 0) {
+        // do a blocking write to SDU2
+        chnWriteTimeout(&SDU2, data, n, TIME_IMMEDIATE);
+    }
+
+    return (AP_HAL::millis() < otg2_serial_deadline_ms);
+}
+#endif
+
 /*
   set baudrate on the current port
  */
