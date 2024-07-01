@@ -347,6 +347,20 @@ bool Copter::set_mode(Mode::Number mode, ModeReason reason)
         return false;
     }
 
+#if AP_FENCE_ENABLED
+    // may not be allowed to change mode if recovering from fence breach
+    if (!ignore_checks &&
+        fence.enabled() &&
+        fence.option_enabled(AC_Fence::OPTIONS::DISABLE_MODE_CHANGE) &&
+        fence.get_breaches() &&
+        !flightmode->is_landing() &&
+        get_control_mode_reason() == ModeReason::FENCE_BREACHED &&
+        !ap.land_complete) {
+        mode_change_failed(new_flightmode, "in fence recovery");
+        return false;
+    }
+#endif
+
     if (!new_flightmode->init(ignore_checks)) {
         mode_change_failed(new_flightmode, "init failed");
         return false;
@@ -371,10 +385,12 @@ bool Copter::set_mode(Mode::Number mode, ModeReason reason)
 #endif
 
 #if AP_FENCE_ENABLED
-    // pilot requested flight mode change during a fence breach indicates pilot is attempting to manually recover
-    // this flight mode change could be automatic (i.e. fence, battery, GPS or GCS failsafe)
-    // but it should be harmless to disable the fence temporarily in these situations as well
-    fence.manual_recovery_start();
+    if (fence.get_action() != AC_FENCE_ACTION_REPORT_ONLY) {
+        // pilot requested flight mode change during a fence breach indicates pilot is attempting to manually recover
+        // this flight mode change could be automatic (i.e. fence, battery, GPS or GCS failsafe)
+        // but it should be harmless to disable the fence temporarily in these situations as well
+        fence.manual_recovery_start();
+    }
 #endif
 
 #if AP_CAMERA_ENABLED
