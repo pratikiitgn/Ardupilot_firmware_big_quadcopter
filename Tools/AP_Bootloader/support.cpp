@@ -467,6 +467,41 @@ void init_uarts(void)
 }
 
 
+#if defined(BOOTLOADER_FORWARD_OTG2_SERIAL)
+/* forward serial to OTG2
+Used for devices containing multiple devices in one
+*/
+static SerialConfig forward_sercfg;
+static uint32_t otg2_serial_deadline_ms;
+bool update_otg2_serial_forward()
+{
+    // get baudrate set on SDU2 and set it on HAL_FORWARD_OTG2_SERIAL if changed
+    if (forward_sercfg.speed != BOOTLOADER_FORWARD_OTG2_SERIAL_BAUDRATE) {
+        forward_sercfg.speed = BOOTLOADER_FORWARD_OTG2_SERIAL_BAUDRATE;
+#if defined(BOOTLOADER_FORWARD_OTG2_SERIAL_SWAP) && BOOTLOADER_FORWARD_OTG2_SERIAL_SWAP
+        forward_sercfg.cr2 = USART_CR2_SWAP;
+#endif
+        sdStart(&BOOTLOADER_FORWARD_OTG2_SERIAL, &forward_sercfg);
+    }
+    // check how many bytes are available to read from HAL_FORWARD_OTG2_SERIAL
+    uint8_t data[SERIAL_BUFFERS_SIZE]; // read upto SERIAL_BUFFERS_SIZE at a time
+    int n = chnReadTimeout(&SDU2, data, SERIAL_BUFFERS_SIZE, TIME_IMMEDIATE);
+    if (n > 0) {
+        // do a blocking write to HAL_FORWARD_OTG2_SERIAL
+        chnWriteTimeout(&BOOTLOADER_FORWARD_OTG2_SERIAL, data, n, TIME_IMMEDIATE);
+        otg2_serial_deadline_ms = AP_HAL::millis() + 1000;
+    }
+
+    n = chnReadTimeout(&BOOTLOADER_FORWARD_OTG2_SERIAL, data, SERIAL_BUFFERS_SIZE, TIME_IMMEDIATE);
+    if (n > 0) {
+        // do a blocking write to SDU2
+        chnWriteTimeout(&SDU2, data, n, TIME_IMMEDIATE);
+    }
+
+    return (AP_HAL::millis() < otg2_serial_deadline_ms);
+}
+#endif
+
 /*
   set baudrate on the current port
  */
@@ -491,19 +526,27 @@ void port_setbaud(uint32_t baudrate)
   check if flash has any ECC errors and if it does then erase all of
   flash
  */
+#define ECC_CHECK_CHUNK_SIZE (32*sizeof(uint32_t))
 void check_ecc_errors(void)
 {
     __disable_fault_irq();
+    // stm32_flash_corrupt(0x8043200);
     auto *dma = dmaStreamAlloc(STM32_DMA_STREAM_ID(1, 1), 0, nullptr, nullptr);
-    uint32_t buf[32];
+
+    uint32_t *buf = (uint32_t*)malloc_dma(ECC_CHECK_CHUNK_SIZE);
+
+    if (buf == nullptr) {
+        // DMA'ble memory not available
+        return;
+    }
     uint32_t ofs = 0;
     while (ofs < BOARD_FLASH_SIZE*1024 && FLASH->SR1 == 0 && FLASH->SR2 == 0) {
         dmaStartMemCopy(dma,
                         STM32_DMA_CR_PL(0) | STM32_DMA_CR_PSIZE_BYTE |
                         STM32_DMA_CR_MSIZE_BYTE,
-                        ofs+(uint8_t*)FLASH_BASE, buf, sizeof(buf));
+                        ofs+(uint8_t*)FLASH_BASE, buf, ECC_CHECK_CHUNK_SIZE);
         dmaWaitCompletion(dma);
-        ofs += sizeof(buf);
+        ofs += ECC_CHECK_CHUNK_SIZE;
     }
     dmaStreamFree(dma);
     
