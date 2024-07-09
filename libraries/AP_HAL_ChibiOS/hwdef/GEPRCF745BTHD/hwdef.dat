@@ -1,5 +1,5 @@
 # hw definition file for processing by chibios_pins.py
-# for GEPRCF745-BT-HD hardware.
+# for TAKER F745 BT hardware.
 # thanks to betaflight for pin information
 
 # MCU class and specific type
@@ -28,10 +28,7 @@ PB9 I2C1_SDA I2C1
 SERIAL_ORDER OTG1 USART1 USART2 USART3 UART4 EMPTY USART6 UART7 UART8
 
 # buzzer
-#PD2 TIM3_ETR TIM3 GPIO(77) ALARM
-#PD2 BUZZER OUTPUT GPIO(80) LOW
 #define HAL_BUZZER_PIN 80
-#
 
 # PA10 IO-debug-console
 PA11 OTG_FS_DM OTG1
@@ -121,14 +118,13 @@ PB0     TIM3_CH3 TIM3 PWM(1) GPIO(50)           # M1
 PB1     TIM3_CH4 TIM3 PWM(2) GPIO(51)           # M2
 PB5     TIM3_CH2 TIM3 PWM(3) GPIO(52)           # M3
 PB4     TIM3_CH1 TIM3 PWM(4) GPIO(53)           # M4
-PD12    TIM4_CH1 TIM4 PWM(5) GPIO(54)  NODMA    # M5
+PD12    TIM4_CH1 TIM4 PWM(5) GPIO(54)           # M5
 PD13    TIM4_CH2 TIM4 PWM(6) GPIO(55)           # M6
 PC8     TIM8_CH3 TIM8 PWM(7) GPIO(56)  NODMA    # M7
 PC9     TIM8_CH4 TIM8 PWM(8) GPIO(57)           # M8
 
 # extra PWM outs
 PA8  TIM1_CH1 TIM1 PWM(9) GPIO(58) # led pin
-#PD2  TIM3_ETR TIM3 PWM(10) GPIO(59) # buzzer pin (need to comment out buzzer)
 PD2 BUZZER OUTPUT GPIO(80) LOW
 define HAL_BUZZER_PIN 80
 define HAL_BUZZER_ON 1
@@ -152,7 +148,7 @@ SPIDEV osd        SPI4 DEVID4 MAX7456_CS  MODE0  10*MHZ 10*MHZ
 # IMU setup
 IMU Invensensev3 SPI:icm42688 ROTATION_ROLL_180
 IMU Invensense   SPI:mpu6000  ROTATION_YAW_90
-define HAL_DEFAULT_INS_FAST_SAMPLE 1
+define HAL_DEFAULT_INS_FAST_SAMPLE 3
 
 # no built-in compass, but probe the i2c bus for all possible
 # external compass types
@@ -174,12 +170,6 @@ define HAL_BOARD_TERRAIN_DIRECTORY "/APM/TERRAIN"
 define OSD_ENABLED 1
 define HAL_OSD_TYPE_DEFAULT 1
 ROMFS_WILDCARD libraries/AP_OSD/fonts/font0.bin
-
-# disable parachute and sprayer to save flash
-define HAL_PARACHUTE_ENABLED 0
-define HAL_SPRAYER_ENABLED 0
-
-define HAL_MOUNT_ENABLED 0
 
 # save some flash
 include ../include/minimize_fpv_osd.inc
