@@ -24,6 +24,13 @@ void Tracker::init_servos()
 
     yaw_servo_out_filt.set_cutoff_frequency(SERVO_OUT_FILT_HZ);
     pitch_servo_out_filt.set_cutoff_frequency(SERVO_OUT_FILT_HZ);
+
+    // initialize stopper states for cr servos
+    // NOTE: parameter changes assume a restart
+    stopper_yaw_min.pin = g.cr_stopper_yaw_min;
+    stopper_yaw_max.pin = g.cr_stopper_yaw_max;
+    stopper_pitch_min.pin = g.cr_stopper_pitch_min;
+    stopper_pitch_max.pin = g.cr_stopper_pitch_max;
 }
 
 /**
@@ -126,7 +133,7 @@ void Tracker::update_pitch_onoff_servo(float pitch) const
 void Tracker::update_pitch_cr_servo(float pitch)
 {
     const float pitch_out = constrain_float(g.pidPitch2Srv.update_error(nav_status.angle_error_pitch, G_Dt), -(-g.pitch_min+g.pitch_max) * 100/2, (-g.pitch_min+g.pitch_max) * 100/2);
-    SRV_Channels::set_output_scaled(SRV_Channel::k_tracker_pitch, pitch_out);
+    try_update_cr_servo(SRV_Channel::k_tracker_pitch, pitch_out);
 }
 
 /**
@@ -239,5 +246,40 @@ void Tracker::update_yaw_onoff_servo(float yaw) const
 void Tracker::update_yaw_cr_servo(float yaw)
 {
     const float yaw_out = constrain_float(-g.pidYaw2Srv.update_error(nav_status.angle_error_yaw, G_Dt), -g.yaw_range * 100/2, g.yaw_range * 100/2);
-    SRV_Channels::set_output_scaled(SRV_Channel::k_tracker_yaw, yaw_out);
+    try_update_cr_servo(SRV_Channel::k_tracker_yaw, yaw_out);
+}
+
+/**
+   update a continuous servo, unless a stopper GPIO has been triggered.
+ */
+void Tracker::try_update_cr_servo(SRV_Channel::Aux_servo_function_t function, float value)
+{
+    // Mapping between the servo and the direction of indented servo travel
+    // NOTE: assumes k_tracker_yaw + 1 == k_tracker_pitch
+    static StopperStatus* stoppers[2][2] = {
+        { &stopper_yaw_min, &stopper_yaw_max },
+        { &stopper_pitch_min, &stopper_pitch_max }
+    };
+    auto stopper = stoppers[function - SRV_Channel::k_tracker_yaw][value > 0];
+
+    // Check the stopper state if the servo needs to move and the pin is configured
+    float new_value = value;
+    if (stopper->pin > 0 && fabsf(new_value) > 0.01f) {
+        // Track whether we triggered the pin and complain
+        bool triggered = hal.gpio->read(stopper->pin) == g.cr_stopper_active_high;
+        if (triggered && !stopper->triggered) {
+            const char* servo = function == SRV_Channel::k_tracker_yaw? "yaw" : "pitch";
+            const char* direction = value > 0 ? "positive" : "negative";
+            gcs().send_text(MAV_SEVERITY_WARNING, "The %s direction stopper of the %s servo reached, further movement suppressed", direction, servo);
+        }
+        stopper->triggered = triggered;
+
+        // Override control if a stopper is triggered
+        if (triggered) {
+            new_value = 0;
+        }
+    }
+
+    // finally update the servo
+    SRV_Channels::set_output_scaled(function, new_value);
 }

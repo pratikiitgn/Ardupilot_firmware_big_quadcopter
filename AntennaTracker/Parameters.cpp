@@ -165,6 +165,41 @@ const AP_Param::Info Tracker::var_info[] = {
     // @User: Standard
     GSCALAR(yaw_range,              "YAW_RANGE", YAW_RANGE_DEFAULT),
 
+    // @Param: CR_STOPPER_ACTIVE_HIGH
+    // @DisplayName: Continuous rotation servo stopper logic
+    // @Description: Determines the GPIO logic of the stoppers for continuous rotation servos
+    // @Values: 0:ActiveLow,1:ActiveHigh
+    // @User: Standard
+    GSCALAR(cr_stopper_active_high, "CR_STOPPER_ACTIVE_HIGH", 0),
+
+    // @Param: CR_STOPPER_YAW_MIN
+    // @DisplayName: Yaw negative stopper pin
+    // @Description: GPIO pin of the negative direction for the continuous rotation yaw servo
+    // @Values: -1:Disabled
+    // @User: Standard
+    GSCALAR(cr_stopper_yaw_min,     "CR_STOPPER_YAW_MIN", -1),
+
+    // @Param: CR_STOPPER_YAW_MAX
+    // @DisplayName: Yaw positive stopper pin
+    // @Description: GPIO pin of the positive direction for the continuous rotation yaw servo
+    // @Values: -1:Disabled
+    // @User: Standard
+    GSCALAR(cr_stopper_yaw_max,     "CR_STOPPER_YAW_MAX", -1),
+
+    // @Param: CR_STOPPER_PITCH_MIN
+    // @DisplayName: Pitch negative stopper pin
+    // @Description: GPIO pin of the negative direction for the continuous rotation pitch servo
+    // @Values: -1:Disabled
+    // @User: Standard
+    GSCALAR(cr_stopper_pitch_min,   "CR_STOPPER_PITCH_MIN", -1),
+
+    // @Param: CR_STOPPER_PITCH_MAX
+    // @DisplayName: Pitch positive stopper pin
+    // @Description: GPIO pin of the positive direction for the continuous rotation pitch servo
+    // @Values: -1:Disabled
+    // @User: Standard
+    GSCALAR(cr_stopper_pitch_max,   "CR_STOPPER_PITCH_MAX", -1),
+
     // @Param: DISTANCE_MIN
     // @DisplayName: Distance minimum to target
     // @Description: Tracker will track targets at least this distance away

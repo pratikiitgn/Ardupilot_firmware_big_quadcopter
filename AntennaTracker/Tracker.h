@@ -133,6 +133,12 @@ private:
         bool scan_reverse_yaw           : 1;// controls direction of yaw movement in SCAN mode
     } nav_status;
 
+    // Stopper GPIOs for the CR servos state
+    struct StopperStatus {
+        int pin;
+        bool triggered;
+    } stopper_yaw_min{-1, false}, stopper_yaw_max{-1, false}, stopper_pitch_min{-1, false}, stopper_pitch_max{-1, false};
+
     // setup the var_info table
     AP_Param param_loader{var_info};
 
@@ -192,6 +198,7 @@ private:
     void update_yaw_position_servo(void);
     void update_yaw_onoff_servo(float yaw) const;
     void update_yaw_cr_servo(float yaw);
+    void try_update_cr_servo(SRV_Channel::Aux_servo_function_t function, float value);
 
     // system.cpp
     void init_ardupilot() override;

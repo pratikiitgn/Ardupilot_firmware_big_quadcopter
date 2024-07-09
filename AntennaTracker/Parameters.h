@@ -100,6 +100,11 @@ public:
         k_param_gcs4,
         k_param_gcs5,
         k_param_gcs6,
+        k_param_cr_stopper_active_high,
+        k_param_cr_stopper_yaw_min,
+        k_param_cr_stopper_yaw_max,
+        k_param_cr_stopper_pitch_min,
+        k_param_cr_stopper_pitch_max,
 
         //
         // 200 : Radio settings
@@ -171,6 +176,11 @@ public:
     AP_Int8  initial_mode;
     AP_Int8 disarm_pwm;
     AP_Int8 auto_opts;
+    AP_Int8 cr_stopper_active_high;
+    AP_Int8 cr_stopper_yaw_min;
+    AP_Int8 cr_stopper_yaw_max;
+    AP_Int8 cr_stopper_pitch_min;
+    AP_Int8 cr_stopper_pitch_max;
 
     // Waypoints
     //
