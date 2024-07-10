@@ -1247,6 +1247,15 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(precland, "PLND_", 35, ParametersG2, AC_PrecLand),
 #endif
 
+    // @Param: TKOFF_THR_MIN
+    // @DisplayName: takeoff minimum throttle
+    // @Description: The minimum throttle to use in takeoff or in a quadpane forward transition in automatic throttle modes. This can be useful to ensure faster takeoffs or transitions on aircraft where the normal throttle control leads to a slow takeoff or transition. Set to zero to disable.
+    // @Units: %
+    // @Range: 0 100
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TKOFF_THR_MIN", 36, ParametersG2, takeoff_throttle_min, 0),
+
     AP_GROUPEND
 };
 

@@ -574,6 +574,8 @@ public:
     
     AP_Int8         axis_bitmask; // axes to be autotuned
 
+    AP_Int8         takeoff_throttle_min;
+
     // just to make compilation easier when all things are compiled out...
     uint8_t unused_integer;
 };

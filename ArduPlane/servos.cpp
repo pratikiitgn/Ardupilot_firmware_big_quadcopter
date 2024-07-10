@@ -540,7 +540,21 @@ float Plane::apply_throttle_limits(float throttle_in)
     throttle_watt_limiter(min_throttle, max_throttle);
 #endif
 
-    return constrain_float(throttle_in, min_throttle, max_throttle);
+    auto throttle = constrain_float(throttle_in, min_throttle, max_throttle);
+
+    /*
+      apply TKOFF_THR_MIN if enabled and in an auto-throttle forward
+      transition
+     */
+    if (use_takeoff_throttle_max) {
+        const auto tmin_thr = g2.takeoff_throttle_min;
+        if (tmin_thr > throttle) {
+            throttle = MAX(throttle, tmin_thr);
+            TECS_controller.reset_throttle_I();
+        }
+    }
+
+    return throttle;
 }
 
 /*
