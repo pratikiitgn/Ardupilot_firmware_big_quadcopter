@@ -10,6 +10,7 @@
 #include "AP_BattMonitor_SMBus_Generic.h"
 #include "AP_BattMonitor_SMBus_Maxell.h"
 #include "AP_BattMonitor_SMBus_Rotoye.h"
+#include "AP_BattMonitor_SMBus_TIBQ.h"
 #include "AP_BattMonitor_Bebop.h"
 #include "AP_BattMonitor_ESC.h"
 #include "AP_BattMonitor_SMBus_SUI.h"
@@ -514,6 +515,11 @@ AP_BattMonitor::init()
 #if AP_BATTERY_SMBUS_ROTOYE_ENABLED
             case Type::Rotoye:
                 drivers[instance] = NEW_NOTHROW AP_BattMonitor_SMBus_Rotoye(*this, state[instance], _params[instance]);
+                break;
+#endif
+#if AP_BATTERY_SMBUS_TIBQ_ENABLED
+            case Type::TIBQ:
+                drivers[instance] = NEW_NOTHROW AP_BattMonitor_SMBus_TIBQ(*this, state[instance], _params[instance]);
                 break;
 #endif
 #if AP_BATTERY_SMBUS_NEODESIGN_ENABLED
@@ -1175,6 +1181,68 @@ bool AP_BattMonitor::handle_scripting(uint8_t idx, const BattMonitorScript_State
     return drivers[idx]->handle_scripting(_state);
 }
 #endif
+
+// Returns true if the battery has shutdown functionality
+bool AP_BattMonitor::can_shutdown(uint8_t instance) const
+{
+    if (instance >= AP_BATT_MONITOR_MAX_INSTANCES || drivers[instance] == nullptr) {
+        return false;
+    }
+
+    return drivers[instance]->can_shutdown();
+}
+
+// Returns true if all connected batteries have shutdown functionality
+bool AP_BattMonitor::can_shutdown() const
+{
+    if (_num_instances == 0) {
+        return false;
+    }
+
+    for (uint8_t i=0; i< _num_instances; i++) {
+        if (configured_type(i) != Type::NONE && !can_shutdown(i)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Attempts to shut down a battery (if supported)
+bool AP_BattMonitor::shutdown(uint8_t instance)
+{
+    if (instance >= AP_BATT_MONITOR_MAX_INSTANCES || drivers[instance] == nullptr) {
+        return false;
+    }
+
+    if (configured_type(instance) == Type::NONE) {
+        return true;
+    }
+
+    return drivers[instance]->shutdown();
+}
+
+// Attempts to shut down all batteries that support doing so
+bool AP_BattMonitor::shutdown()
+{
+    if (!can_shutdown() || _num_instances == 0) {
+        return false;
+    }
+
+    for (uint8_t i=0; i< _num_instances; i++) {
+        // Save primary battery for last
+        if (i == AP_BATT_PRIMARY_INSTANCE) {
+            continue;
+        }
+
+        if (!shutdown(i)) {
+            return false;
+        }
+    }
+
+    return shutdown(AP_BATT_PRIMARY_INSTANCE);
+}
+
 
 namespace AP {
 
