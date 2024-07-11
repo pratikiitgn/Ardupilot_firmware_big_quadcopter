@@ -305,12 +305,13 @@ bool AP_ESC_Telem::get_usage_seconds(uint8_t esc_index, uint32_t& usage_s) const
     return true;
 }
 
-#if AP_EXTENDED_ESC_TELEM_ENABLE
+#if AP_EXTENDED_ESC_TELEM_ENABLED
 // get an individual ESC's input duty if available, returns true on success
 bool AP_ESC_Telem::get_input_duty(uint8_t esc_index, uint8_t& input_duty) const
 {
+    const volatile AP_ESC_Telem_Backend::TelemetryData& telemdata = _telem_data[esc_index];
     if (esc_index >= ESC_TELEM_MAX_ESCS
-        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || telemdata.stale()
         || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::INPUT_DUTY)) {
         return false;
     }
@@ -321,8 +322,9 @@ bool AP_ESC_Telem::get_input_duty(uint8_t esc_index, uint8_t& input_duty) const
 // get an individual ESC's output duty if available, returns true on success
 bool AP_ESC_Telem::get_output_duty(uint8_t esc_index, uint8_t& output_duty) const
 {
+    const volatile AP_ESC_Telem_Backend::TelemetryData& telemdata = _telem_data[esc_index];
     if (esc_index >= ESC_TELEM_MAX_ESCS
-        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || telemdata.stale()
         || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::OUTPUT_DUTY)) {
         return false;
     }
@@ -333,15 +335,16 @@ bool AP_ESC_Telem::get_output_duty(uint8_t esc_index, uint8_t& output_duty) cons
 // get an individual ESC's status flags if available, returns true on success
 bool AP_ESC_Telem::get_flags(uint8_t esc_index, uint32_t& flags) const
 {
+    const volatile AP_ESC_Telem_Backend::TelemetryData& telemdata = _telem_data[esc_index];
     if (esc_index >= ESC_TELEM_MAX_ESCS
-        || AP_HAL::millis() - _telem_data[esc_index].last_update_ms > ESC_TELEM_DATA_TIMEOUT_MS
+        || telemdata.stale()
         || !(_telem_data[esc_index].types & AP_ESC_Telem_Backend::TelemetryType::FLAGS)) {
         return false;
     }
     flags = _telem_data[esc_index].flags;
     return true;
 }
-#endif // AP_EXTENDED_ESC_TELEM_ENABLE
+#endif // AP_EXTENDED_ESC_TELEM_ENABLED
 
 // send ESC telemetry messages over MAVLink
 void AP_ESC_Telem::send_esc_telemetry_mavlink(uint8_t mav_chan)
@@ -506,7 +509,7 @@ void AP_ESC_Telem::update_telem_data(const uint8_t esc_index, const AP_ESC_Telem
         telemdata.usage_s = new_data.usage_s;
     }
 
-#if AP_EXTENDED_ESC_TELEM_ENABLE
+#if AP_EXTENDED_ESC_TELEM_ENABLED
     if (data_mask & AP_ESC_Telem_Backend::TelemetryType::INPUT_DUTY) {
         _telem_data[esc_index].input_duty = new_data.input_duty;
     }
@@ -516,7 +519,7 @@ void AP_ESC_Telem::update_telem_data(const uint8_t esc_index, const AP_ESC_Telem
     if (data_mask & AP_ESC_Telem_Backend::TelemetryType::FLAGS) {
         _telem_data[esc_index].flags = new_data.flags;
     }
-#endif //AP_EXTENDED_ESC_TELEM_ENABLE
+#endif //AP_EXTENDED_ESC_TELEM_ENABLED
 
 #if AP_EXTENDED_DSHOT_TELEM_V2_ENABLED
     if (data_mask & AP_ESC_Telem_Backend::TelemetryType::EDT2_STATUS) {
@@ -658,7 +661,7 @@ void AP_ESC_Telem::update()
                 };
                 AP::logger().WriteBlock(&pkt, sizeof(pkt));
 
-#if AP_EXTENDED_ESC_TELEM_ENABLE
+#if AP_EXTENDED_ESC_TELEM_ENABLED
                 // Write ESC extended status messages
                 //   id: starts from 0
                 //   input duty: duty cycle input to the ESC in percent
@@ -669,17 +672,25 @@ void AP_ESC_Telem::update()
                          AP_ESC_Telem_Backend::TelemetryType::OUTPUT_DUTY |
                          AP_ESC_Telem_Backend::TelemetryType::FLAGS);
                 if (has_ext_data) {
-                    const struct log_EscX pkt2{
-                        LOG_PACKET_HEADER_INIT(uint8_t(LOG_ESCX_MSG)),
-                        time_us     : AP_HAL::micros64(),
-                        instance    : i,
-                        input_duty  : telemdata.input_duty,
-                        output_duty : telemdata.output_duty,
-                        flags       : telemdata.flags,
-                    };
-                    AP::logger().WriteBlock(&pkt2, sizeof(pkt2));
+                    // @LoggerMessage: ESCX
+                    // @Description: ESC extended telemetry data
+                    // @Field: TimeUS: Time since system startup
+                    // @Field: Instance: starts from 0
+                    // @Field: inpct: input duty cycle in percent
+                    // @Field: outpct: output duty cycle in percent
+                    // @Field: flags: manufacturer-specific status flags
+                    AP::logger().WriteStreaming("ESCX",
+                                                "TimeUS,Instance,inpct,outpct,flags",
+                                                "s#%%-",
+                                                "F----",
+                                                "QBBBI",
+                                                AP_HAL::micros64(),
+                                                uint8_t(i),
+                                                uint8_t(telemdata.input_duty),
+                                                uint8_t(telemdata.output_duty),
+                                                uint32_t(telemdata.flags));
                 }
-#endif //AP_EXTENDED_ESC_TELEM_ENABLE
+#endif //AP_EXTENDED_ESC_TELEM_ENABLED
                 _last_telem_log_ms[i] = telemdata.last_update_ms;
                 _last_rpm_log_us[i] = rpmdata.last_update_us;
             }

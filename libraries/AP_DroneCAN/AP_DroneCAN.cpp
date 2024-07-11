@@ -1453,7 +1453,7 @@ void AP_DroneCAN::handle_ESC_status(const CanardRxTransfer& transfer, const uavc
  */
 void AP_DroneCAN::handle_esc_ext_status(const CanardRxTransfer& transfer, const uavcan_equipment_esc_StatusExtended& msg)
 {
-#if HAL_WITH_ESC_TELEM && AP_EXTENDED_ESC_TELEM_ENABLE
+#if HAL_WITH_ESC_TELEM && AP_EXTENDED_ESC_TELEM_ENABLED
     const uint8_t esc_offset = constrain_int16(_esc_offset.get(), 0, DRONECAN_SRV_NUMBER);
     const uint8_t esc_index = msg.esc_index + esc_offset;
 

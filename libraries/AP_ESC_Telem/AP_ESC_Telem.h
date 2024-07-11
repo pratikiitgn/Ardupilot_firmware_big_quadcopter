@@ -67,7 +67,7 @@ public:
     // get an individual ESC's consumption in milli-Ampere.hour if available, returns true on success
     bool get_consumption_mah(uint8_t esc_index, float& consumption_mah) const;
 
-#if AP_EXTENDED_ESC_TELEM_ENABLE
+#if AP_EXTENDED_ESC_TELEM_ENABLED
     // get an individual ESC's input duty if available, returns true on success
     bool get_input_duty(uint8_t esc_index, uint8_t& input_duty) const;
 
@@ -76,7 +76,7 @@ public:
 
     // get an individual ESC's status flags if available, returns true on success
     bool get_flags(uint8_t esc_index, uint32_t& flags) const;
-#endif // AP_EXTENDED_ESC_TELEM_ENABLE
+#endif // AP_EXTENDED_ESC_TELEM_ENABLED
 
     // return the average motor frequency in Hz for dynamic filtering
     float get_average_motor_frequency_hz(uint32_t servo_channel_mask) const { return get_average_motor_rpm(servo_channel_mask) * (1.0f / 60.0f); };
