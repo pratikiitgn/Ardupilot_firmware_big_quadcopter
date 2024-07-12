@@ -130,6 +130,11 @@ private:
     // throttle percentage for engine idle
     AP_Int8 idle_percent;
 
+#if AP_ICENGINE_TCA9554_STARTER_ENABLED
+    // crank engine direction
+    AP_Int8 crank_direction;
+#endif //AP_ICENGINE_TCA9554_STARTER_ENABLED
+
 #if AP_RPM_ENABLED
     // Idle Controller RPM setpoint
     AP_Int16 idle_rpm;
