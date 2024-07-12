@@ -289,7 +289,7 @@ reset:
 // Send command and wait for response
 // Only run from thread! This blocks and retries until a non-error response is received
 #define READ_REQUEST_RETRY_MS 500
-void AP_ExternalAHRS_VectorNav::send_command_blocking()
+void AP_ExternalAHRS_VectorNav::run_command()
 {
     uint32_t request_sent = 0;
     while (true) {
@@ -411,18 +411,18 @@ void AP_ExternalAHRS_VectorNav::initialize() {
 
     // Pause asynchronous communications to simplify packet finding
     hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNASY,0");
-    send_command_blocking();
+    run_command();
 
     // Stop ASCII async outputs for both UARTs. If only active UART is disabled, we get a baudrate
     // overflow on the other UART when configuring binary outputs (reg 75 and 76) to both UARTs
     hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNWRG,06,1");
-    send_command_blocking();
+    run_command();
     hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNWRG,06,2");
-    send_command_blocking();
+    run_command();
 
     // Read Model Number Register, ID 1
     hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNRRG,01");
-    send_command_blocking();
+    run_command();
 
     // Setup for messages respective model types (on both UARTs)
     if (strncmp(model_name, "VN-1", 4) == 0) {
@@ -432,7 +432,7 @@ void AP_ExternalAHRS_VectorNav::initialize() {
         // This assumes unit is still configured at its default rate of 800hz
         hal.util->snprintf(message_to_send, sizeof(message_to_send),
                            "VNWRG,75,3,%u,14,073E,0004", unsigned(800 / get_rate()));
-        send_command_blocking();
+        run_command();
     } else {
         // Default to setup for sensors other than VN-100 or VN-110
         // This assumes unit is still configured at its default IMU rate of 400hz for VN-300, 800hz for others
@@ -445,15 +445,15 @@ void AP_ExternalAHRS_VectorNav::initialize() {
         }
         hal.util->snprintf(message_to_send, sizeof(message_to_send),
                            "VNWRG,75,3,%u,34,072E,0106,0612", unsigned(imu_rate / get_rate()));
-        send_command_blocking();
+        run_command();
         hal.util->snprintf(message_to_send, sizeof(message_to_send),
                            "VNWRG,76,3,%u,4E,0002,0010,20B8,0018", unsigned(imu_rate / 5));
-        send_command_blocking();
+        run_command();
     }
 
     // Resume asynchronous communications
     hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNASY,1");
-    send_command_blocking();
+    run_command();
     setup_complete = true;
 }
 
