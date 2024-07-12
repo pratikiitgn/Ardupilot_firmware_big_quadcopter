@@ -58,9 +58,8 @@ struct PACKED log_Edt2 {
     uint8_t status;
 };
 
-#define LOG_STRUCTURE_FROM_ESC_TELEM  \
+#define LOG_STRUCTURE_FROM_ESC_TELEM \
     { LOG_ESC_MSG, sizeof(log_Esc), \
       "ESC",  "QBffffcfcf", "TimeUS,Instance,RPM,RawRPM,Volt,Curr,Temp,CTot,MotTemp,Err", "s#qqvAOaO%", "F-00--BCB-" , true }, \
     { LOG_EDT2_MSG, sizeof(log_Edt2), \
       "EDT2",  "QBBBB", "TimeUS,Instance,Stress,MaxStress,Status", "s#---", "F----" , true },
-
