@@ -243,8 +243,7 @@ bool Util::get_system_id(char buf[50])
 
 bool Util::get_system_id_unformatted(uint8_t buf[], uint8_t &len)
 {
-    len = MIN(12, len);
-
+    len = MIN(6, len);
 
     uint8_t base_mac_addr[6] = {0};
     esp_err_t ret = esp_efuse_mac_get_custom(base_mac_addr);
