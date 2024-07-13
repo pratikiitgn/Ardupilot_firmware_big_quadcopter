@@ -65,6 +65,14 @@ void AP_DroneCAN_DNA_Server::getHash(NodeData &node_data, const uint8_t unique_i
     }
 }
 
+// compute safe checksum of NodeData structure
+uint8_t AP_DroneCAN_DNA_Server::getNodeDataChecksum(NodeData &node_data) const
+{
+    uint8_t crc = crc_crc8(node_data.hwid_hash, sizeof(node_data.hwid_hash));
+    // 0 signifies empty data record so we have to return 1 instead
+    return crc != 0 ? crc : 1;
+}
+
 //Read Node Data from Storage Region
 void AP_DroneCAN_DNA_Server::readNodeData(NodeData &data, uint8_t node_id)
 {
@@ -174,8 +182,8 @@ void AP_DroneCAN_DNA_Server::addNodeIDForUniqueID(uint8_t node_id, const uint8_t
 {
     NodeData node_data;
     getHash(node_data, unique_id, size);
-    //Generate CRC for validating the data when read back
-    node_data.crc = crc_crc8(node_data.hwid_hash, sizeof(node_data.hwid_hash));
+    //Generate checksum for validating the data when read back
+    node_data.checksum = getNodeDataChecksum(node_data);
 
     //Write Data to the records
     writeNodeData(node_data, node_id);
@@ -188,8 +196,8 @@ bool AP_DroneCAN_DNA_Server::isValidNodeDataAvailable(uint8_t node_id)
 {
     NodeData node_data;
     readNodeData(node_data, node_id);
-    uint8_t crc = crc_crc8(node_data.hwid_hash, sizeof(node_data.hwid_hash));
-    if (crc == node_data.crc && node_data.crc != 0) {
+    uint8_t checksum = getNodeDataChecksum(node_data);
+    if (checksum == node_data.checksum && node_data.checksum != 0) {
         return true;
     }
     return false;

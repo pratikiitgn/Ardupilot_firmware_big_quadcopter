@@ -20,7 +20,7 @@ class AP_DroneCAN_DNA_Server
 
     struct NodeData {
         uint8_t hwid_hash[6];
-        uint8_t crc;
+        uint8_t checksum;
     };
 
     enum ServerState {
@@ -59,6 +59,9 @@ class AP_DroneCAN_DNA_Server
 
     //Generates 6Byte long hash from the specified unique_id
     void getHash(NodeData &node_data, const uint8_t unique_id[], uint8_t size) const;
+
+    // compute safe checksum of NodeData structure
+    uint8_t getNodeDataChecksum(NodeData &node_data) const;
 
     //Reset the Server Record
     void reset();
