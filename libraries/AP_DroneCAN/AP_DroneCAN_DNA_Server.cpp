@@ -95,16 +95,6 @@ void AP_DroneCAN_DNA_Server::writeNodeData(const NodeData &data, uint8_t node_id
     storage.write_block(NODEDATA_LOC(node_id), &data, sizeof(struct NodeData));
 }
 
-/* Set Occupation Mask, handy for keeping track of all node ids that
-are allocated and all that are available. */
-void AP_DroneCAN_DNA_Server::setOccupationMask(uint8_t node_id)
-{
-    if (node_id > MAX_NODE_ID) {
-        return;
-    }
-    occupation_mask.set(node_id);
-}
-
 /* Remove Node Data from Server Record in Storage,
 and also clear Occupation Mask */
 void AP_DroneCAN_DNA_Server::freeNodeID(uint8_t node_id)
@@ -120,38 +110,7 @@ void AP_DroneCAN_DNA_Server::freeNodeID(uint8_t node_id)
     writeNodeData(node_data, node_id);
 
     //Clear Occupation Mask
-    occupation_mask.clear(node_id);
-}
-
-/* Sets the verification mask. This is to be called, once
-The Seen Node has been both registered and verified against the
-Server Records. */
-void AP_DroneCAN_DNA_Server::setVerificationMask(uint8_t node_id)
-{
-    if (node_id > MAX_NODE_ID) {
-        return;
-    }
-    verified_mask.set(node_id);
-}
-
-/* Checks if the NodeID is occupied, i.e. its recorded
-in the Server Records against a unique ID */
-bool AP_DroneCAN_DNA_Server::isNodeIDOccupied(uint8_t node_id) const
-{
-    if (node_id > MAX_NODE_ID) {
-        return false;
-    }
-    return occupation_mask.get(node_id);
-}
-
-/* Checks if NodeID is verified, i.e. the unique id in
-Storage Records matches the one provided by Device with this node id. */
-bool AP_DroneCAN_DNA_Server::isNodeIDVerified(uint8_t node_id) const
-{
-    if (node_id > MAX_NODE_ID) {
-        return false;
-    }
-    return verified_mask.get(node_id);
+    node_storage_occupied.clear(node_id);
 }
 
 /* Go through Server Records, and fetch node id that matches the provided
@@ -163,7 +122,7 @@ uint8_t AP_DroneCAN_DNA_Server::getNodeIDForUniqueID(const uint8_t unique_id[], 
     getHash(cmp_node_data, unique_id, size);
 
     for (int i = MAX_NODE_ID; i > 0; i--) {
-        if (isNodeIDOccupied(i)) {
+        if (node_storage_occupied.get(i)) {
             readNodeData(node_data, i);
             if (memcmp(node_data.hwid_hash, cmp_node_data.hwid_hash, sizeof(NodeData::hwid_hash)) == 0) {
                 return i; // node ID found
@@ -185,7 +144,7 @@ void AP_DroneCAN_DNA_Server::addNodeIDForUniqueID(uint8_t node_id, const uint8_t
     //Write Data to the records
     writeNodeData(node_data, node_id);
 
-    setOccupationMask(node_id);
+    node_storage_occupied.set(node_id);
 }
 
 //Checks if a valid Server Record is present for specified Node ID
@@ -225,10 +184,10 @@ bool AP_DroneCAN_DNA_Server::init(uint8_t own_unique_id[], uint8_t own_unique_id
     }
 
     /* Go through our records and look for valid NodeData, to initialise
-    occupation mask */
+    occupied status */
     for (uint8_t i = 1; i <= MAX_NODE_ID; i++) {
         if (isValidNodeDataAvailable(i)) {
-            occupation_mask.set(i);
+            node_storage_occupied.set(i);
         }
     }
 
@@ -248,9 +207,9 @@ bool AP_DroneCAN_DNA_Server::init(uint8_t own_unique_id[], uint8_t own_unique_id
     }
     /* Also add to seen node id this is to verify
     if any duplicates are on the bus carrying our Node ID */
-    addToSeenNodeMask(node_id);
-    setVerificationMask(node_id);
-    node_healthy_mask.set(node_id);
+    node_seen.set(node_id);
+    node_verified.set(node_id);
+    node_healthy.set(node_id);
     self_node_id = node_id;
     return true;
 }
@@ -261,7 +220,7 @@ void AP_DroneCAN_DNA_Server::reset()
 {
     NodeData node_data;
     memset(&node_data, 0, sizeof(node_data));
-    occupation_mask.clearall();
+    node_storage_occupied.clearall();
 
     //Just write empty Node Data to the Records
     // ensure node ID 0 is cleared even if we can't use it so we know the state
@@ -284,7 +243,7 @@ uint8_t AP_DroneCAN_DNA_Server::findFreeNodeID(uint8_t preferred)
     // Search up
     uint8_t candidate = preferred;
     while (candidate <= 125) {
-        if (!isNodeIDOccupied(candidate)) {
+        if (!node_storage_occupied.get(candidate)) {
             return candidate;
         }
         candidate++;
@@ -292,32 +251,13 @@ uint8_t AP_DroneCAN_DNA_Server::findFreeNodeID(uint8_t preferred)
     //Search down
     candidate = preferred;
     while (candidate > 0) {
-        if (!isNodeIDOccupied(candidate)) {
+        if (!node_storage_occupied.get(candidate)) {
             return candidate;
         }
         candidate--;
     }
     // Not found
     return 0;
-}
-
-//Check if we have received Node Status from this node_id
-bool AP_DroneCAN_DNA_Server::isNodeSeen(uint8_t node_id)
-{
-    if (node_id > MAX_NODE_ID) {
-        return false;
-    }
-    return node_seen_mask.get(node_id);
-}
-
-/* Set the Seen Node Mask, to be called when received
-Node Status from the node id */
-void AP_DroneCAN_DNA_Server::addToSeenNodeMask(uint8_t node_id)
-{
-    if (node_id > MAX_NODE_ID) {
-        return;
-    }
-    node_seen_mask.set(node_id);
 }
 
 /* Run through the list of seen node ids for verification no more
@@ -335,7 +275,7 @@ void AP_DroneCAN_DNA_Server::verify_nodes()
     uint8_t log_count = AP::logger().get_log_start_count();
     if (log_count != last_logging_count) {
         last_logging_count = log_count;
-        logged.clearall();
+        node_logged.clearall();
     }
 #endif
 
@@ -350,12 +290,7 @@ void AP_DroneCAN_DNA_Server::verify_nodes()
         Reason for this could be either the node was disconnected
         Or a node with conflicting ID appeared and is sending response
         at the same time. */
-        /* Only report if the node was verified, otherwise ignore
-        as this could be just Bootloader to Application transition. */
-        if (isNodeIDVerified(curr_verifying_node)) {
-            // remove verification flag for this node
-            verified_mask.clear(curr_verifying_node);
-        }
+        node_verified.clear(curr_verifying_node);
     }
 
     last_verification_request = now;
@@ -365,11 +300,11 @@ void AP_DroneCAN_DNA_Server::verify_nodes()
         if ((curr_verifying_node == self_node_id) || (curr_verifying_node == 0)) {
             continue;
         }
-        if (isNodeSeen(curr_verifying_node)) {
+        if (node_seen.get(curr_verifying_node)) {
             break;
         }
     }
-    if (isNodeIDOccupied(curr_verifying_node)) {
+    if (node_storage_occupied.get(curr_verifying_node)) {
         uavcan_protocol_GetNodeInfoRequest request;
         node_info_client.request(curr_verifying_node, request);
         nodeInfo_resp_rcvd = false;
@@ -390,20 +325,20 @@ void AP_DroneCAN_DNA_Server::handleNodeStatus(const CanardRxTransfer& transfer, 
         //if node is not healthy or operational, clear resp health mask, and set fault_node_id
         fault_node_id = transfer.source_node_id;
         server_state = NODE_STATUS_UNHEALTHY;
-        node_healthy_mask.clear(transfer.source_node_id);
+        node_healthy.clear(transfer.source_node_id);
     } else {
-        node_healthy_mask.set(transfer.source_node_id);
-        if (node_healthy_mask == verified_mask) {
+        node_healthy.set(transfer.source_node_id);
+        if (node_healthy == node_verified) {
             server_state = HEALTHY;
         }
     }
-    if (!isNodeIDVerified(transfer.source_node_id)) {
+    if (!node_verified.get(transfer.source_node_id)) {
         //immediately begin verification of the node_id
         uavcan_protocol_GetNodeInfoRequest request;
         node_info_client.request(transfer.source_node_id, request);
     }
     //Add node to seen list if not seen before
-    addToSeenNodeMask(transfer.source_node_id);
+    node_seen.set(transfer.source_node_id);
 }
 
 /* Node Info message handler
@@ -420,8 +355,8 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
       if we haven't logged this node then log it now
      */
 #if HAL_LOGGING_ENABLED
-    if (!logged.get(transfer.source_node_id) && AP::logger().logging_started()) {
-        logged.set(transfer.source_node_id);
+    if (!node_logged.get(transfer.source_node_id) && AP::logger().logging_started()) {
+        node_logged.set(transfer.source_node_id);
         uint64_t uid[2];
         memcpy(uid, rsp.hardware_version.unique_id, sizeof(rsp.hardware_version.unique_id));
         // @LoggerMessage: CAND
@@ -448,13 +383,13 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
     }
 #endif
 
-    if (isNodeIDOccupied(transfer.source_node_id)) {
+    if (node_storage_occupied.get(transfer.source_node_id)) {
         //if node_id already registered, just verify if Unique ID matches as well
         if (transfer.source_node_id == getNodeIDForUniqueID(rsp.hardware_version.unique_id, 16)) {
             if (transfer.source_node_id == curr_verifying_node) {
                 nodeInfo_resp_rcvd = true;
             }
-            setVerificationMask(transfer.source_node_id);
+            node_verified.set(transfer.source_node_id);
         } else if (!_ap_dronecan.option_is_set(AP_DroneCAN::Options::DNA_IGNORE_DUPLICATE_NODE)) {
             /* This is a device with node_id already registered
             for another device */
@@ -473,7 +408,7 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
         //add a new server record
         addNodeIDForUniqueID(transfer.source_node_id, rsp.hardware_version.unique_id, 16);
         //Verify as well
-        setVerificationMask(transfer.source_node_id);
+        node_verified.set(transfer.source_node_id);
         if (transfer.source_node_id == curr_verifying_node) {
             nodeInfo_resp_rcvd = true;
         }
