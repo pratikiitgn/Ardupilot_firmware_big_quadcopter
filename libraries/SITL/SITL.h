@@ -230,7 +230,8 @@ public:
 #if HAL_NUM_CAN_IFACES
     enum class CANTransport : uint8_t {
       MulticastUDP = 0,
-      SocketCAN = 1
+      SocketCAN = 1,
+      Disabled = 255
     };
     AP_Enum<CANTransport> can_transport[HAL_NUM_CAN_IFACES];
 #endif
