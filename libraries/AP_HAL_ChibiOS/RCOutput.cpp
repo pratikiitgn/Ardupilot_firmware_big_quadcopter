@@ -553,19 +553,19 @@ void RCOutput::set_dshot_rate(uint8_t dshot_rate, uint16_t loop_rate_hz)
     }
 
     uint16_t drate = dshot_rate * loop_rate_hz;
-    _dshot_rate = dshot_rate;
     // BLHeli32 uses a 16 bit counter for input calibration which at 48Mhz will wrap
     // at 732Hz so never allow rates below 800hz
     while (drate < 800) {
-        _dshot_rate++;
-        drate = _dshot_rate * loop_rate_hz;
+        dshot_rate++;
+        drate = dshot_rate * loop_rate_hz;
     }
-    // prevent stupidly high rates, ideally should also prevent high rates
+    // prevent stupidly high rate multiples, ideally should also prevent high rates
     // with slower dshot variants
-    if (drate > 4000) {
-        _dshot_rate = 4000 / loop_rate_hz;
-        drate = _dshot_rate * loop_rate_hz;
+    while (dshot_rate > 1 && drate > MAX(4096, loop_rate_hz)) {
+        dshot_rate--;
+        drate = dshot_rate * loop_rate_hz;
     }
+    _dshot_rate = dshot_rate;
     _dshot_period_us = 1000000UL / drate;
 #if HAL_WITH_IO_MCU
     if (iomcu_dshot) {
@@ -808,11 +808,9 @@ void RCOutput::push_local(void)
 #endif // HAL_DSHOT_ENABLED
                 if (group.current_mode == MODE_PWM_ONESHOT ||
                     group.current_mode == MODE_PWM_ONESHOT125 ||
-                    group.current_mode == MODE_NEOPIXEL ||
-                    group.current_mode == MODE_NEOPIXELRGB ||
-                    group.current_mode == MODE_PROFILED ||
                     is_dshot_protocol(group.current_mode)) {
                     // only control widest pulse for oneshot and dshot
+                    // do not control for neopixel since updates to these are not pushed
                     if (period_us > widest_pulse) {
                         widest_pulse = period_us;
                     }
@@ -1133,6 +1131,7 @@ void RCOutput::set_group_mode(pwm_group &group)
         if (is_bidir_dshot_enabled(group)) {
             group.dshot_pulse_send_time_us = pulse_send_time_us;
             // to all intents and purposes the pulse time of send and receive are the same
+            // for dshot600 this is roughly 26us + 30us + 26us = 82us
             group.dshot_pulse_time_us = pulse_send_time_us + pulse_send_time_us + 30;
         }
 #endif
@@ -1390,7 +1389,8 @@ void RCOutput::trigger_groups()
     osalSysUnlock();
 #if !defined(HAL_NO_RCOUT_THREAD) || HAL_DSHOT_ENABLED
     // trigger a PWM send
-    if (!in_soft_serial() && hal.scheduler->in_main_thread() && rcout_thread_ctx) {
+    if (!in_soft_serial() &&
+        (hal.scheduler->in_main_thread() || force_trigger) && rcout_thread_ctx) {
         chEvtSignal(rcout_thread_ctx, EVT_PWM_SEND);
     }
 #endif

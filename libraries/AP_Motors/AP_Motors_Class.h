@@ -6,6 +6,7 @@
 #include <Filter/DerivativeFilter.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <AP_Logger/AP_Logger_config.h>
+#include <SRV_Channel/SRV_Channel.h>
 
 // offsets for motors in motor_out and _motor_filtered arrays
 #define AP_MOTORS_MOT_1 0U
@@ -360,6 +361,8 @@ protected:
     AP_Int16            _options;
 
     MAV_TYPE _mav_type; // MAV_TYPE_GENERIC = 0;
+
+    uint8_t motor_servo_map[AP_MOTORS_MAX_NUM_MOTORS];  // map of motor channels to servo channels to expedite lookups
 
     enum pwm_type {
         PWM_TYPE_NORMAL     = 0,
