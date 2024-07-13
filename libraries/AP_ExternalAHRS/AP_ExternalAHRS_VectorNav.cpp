@@ -286,21 +286,18 @@ reset:
     return true;
 }
 
-// Send command to read given register number and wait for response
-// Only run from thread! This blocks until a response is received
+// Send command and wait for response
+// Only run from thread! This blocks and retries until a non-error response is received
 #define READ_REQUEST_RETRY_MS 500
-void AP_ExternalAHRS_VectorNav::wait_register_responce(const uint8_t register_num)
+void AP_ExternalAHRS_VectorNav::run_command()
 {
-    nmea.register_number = register_num;
-
     uint32_t request_sent = 0;
     while (true) {
         hal.scheduler->delay(1);
 
         const uint32_t now = AP_HAL::millis();
         if (now - request_sent > READ_REQUEST_RETRY_MS) {
-            // Send request to read
-            nmea_printf(uart, "$%s%u", "VNRRG,", nmea.register_number);
+            nmea_printf(uart, "$%s", message_to_send);
             request_sent = now;
         }
 
@@ -308,6 +305,10 @@ void AP_ExternalAHRS_VectorNav::wait_register_responce(const uint8_t register_nu
         while (nbytes-- > 0) {
             char c = uart->read();
             if (decode(c)) {
+                if (nmea.error_response && nmea.sentence_done) {
+                    // Received a valid VNERR. Try to resend after the timeout length
+                    break;
+                }
                 return;
             }
         }
@@ -356,6 +357,7 @@ bool AP_ExternalAHRS_VectorNav::decode(char c)
         nmea.checksum = 0;
         nmea.term_is_checksum = false;
         nmea.sentence_done = false;
+        nmea.error_response = false;
         return false;
     }
 
@@ -371,57 +373,66 @@ bool AP_ExternalAHRS_VectorNav::decode(char c)
 }
 
 // decode the most recently consumed term
-// returns true if new sentence has just passed checksum test and is validated
+// returns true if new term is valid
 bool AP_ExternalAHRS_VectorNav::decode_latest_term()
 {
+    // Check the first two terms (In most cases header + reg number) that they match the sent
+    // message. If not, the response is invalid.
     switch (nmea.term_number) {
         case 0:
-            if (strcmp(nmea.term, "VNRRG") != 0) {
+            if (strncmp(nmea.term, "VNERR", nmea.term_offset) == 0) {
+                nmea.error_response = true;  // Message will be printed on next term 
+            } else if (strncmp(nmea.term, message_to_send, nmea.term_offset) != 0) {
                 return false;
             }
-            break;
-
-        case 1:
-            if (nmea.register_number != strtoul(nmea.term, nullptr, 10)) {
+            return true;
+        case 1: 
+            if (nmea.error_response) {
+                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "VectorNav received VNERR code: %s", nmea.term);
+            } else if (strncmp(nmea.term, message_to_send + 6,
+                       nmea.term_offset) != 0) {  // Start after "VNXXX,"
                 return false;
             }
-            break;
-
-        case 2:
-            strncpy(model_name, nmea.term, sizeof(model_name));
-            break;
-
+            return true;
+        case 2: 
+            if (strncmp(nmea.term, "VN-", 3) == 0) {
+                // This term is the model number
+                strncpy(model_name, nmea.term, sizeof(model_name));
+            }
+            return true;
         default:
-            return false;
+            return true;
     }
-    return true;
 }
 
-void AP_ExternalAHRS_VectorNav::update_thread()
-{
+void AP_ExternalAHRS_VectorNav::initialize() {
     // Open port in the thread
     uart->begin(baudrate, 1024, 512);
 
-    // Reset and wait for module to reboot
-    // VN_100 takes 1.25 seconds
-    //nmea_printf(uart, "$VNRST");
-    //hal.scheduler->delay(3000);
+    // Pause asynchronous communications to simplify packet finding
+    hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNASY,0");
+    run_command();
 
-    // Stop NMEA Async Outputs (this UART only)
-    nmea_printf(uart, "$VNWRG,6,0");
+    // Stop ASCII async outputs for both UARTs. If only active UART is disabled, we get a baudrate
+    // overflow on the other UART when configuring binary outputs (reg 75 and 76) to both UARTs
+    hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNWRG,06,0,1");
+    run_command();
+    hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNWRG,06,0,2");
+    run_command();
 
-    // Detect version
     // Read Model Number Register, ID 1
-    wait_register_responce(1);
+    hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNRRG,01");
+    run_command();
 
     // Setup for messages respective model types (on both UARTs)
     if (strncmp(model_name, "VN-1", 4) == 0) {
-        // VN-100
+        // VN-1X0
         type = TYPE::VN_AHRS;
 
         // This assumes unit is still configured at its default rate of 800hz
-        nmea_printf(uart, "$VNWRG,75,3,%u,14,073E,0004", unsigned(800/get_rate()));
-
+        hal.util->snprintf(message_to_send, sizeof(message_to_send),
+                           "VNWRG,75,3,%u,14,073E,0004", unsigned(800 / get_rate()));
+        run_command();
     } else {
         // Default to setup for sensors other than VN-100 or VN-110
         // This assumes unit is still configured at its default IMU rate of 400hz for VN-300, 800hz for others
@@ -432,11 +443,22 @@ void AP_ExternalAHRS_VectorNav::update_thread()
         if (strncmp(model_name, "VN-3", 4) == 0) {
             has_dual_gnss = true;
         }
-        nmea_printf(uart, "$VNWRG,75,3,%u,34,072E,0106,0612", unsigned(imu_rate/get_rate()));
-        nmea_printf(uart, "$VNWRG,76,3,%u,4E,0002,0010,20B8,0018", unsigned(imu_rate/5));
+        hal.util->snprintf(message_to_send, sizeof(message_to_send),
+                           "VNWRG,75,3,%u,34,072E,0106,0612", unsigned(imu_rate / get_rate()));
+        run_command();
+        hal.util->snprintf(message_to_send, sizeof(message_to_send),
+                           "VNWRG,76,3,%u,4E,0002,0010,20B8,0018", unsigned(imu_rate / 5));
+        run_command();
     }
 
+    // Resume asynchronous communications
+    hal.util->snprintf(message_to_send, sizeof(message_to_send), "VNASY,1");
+    run_command();
     setup_complete = true;
+}
+
+void AP_ExternalAHRS_VectorNav::update_thread() {
+    initialize();
     while (true) {
         if (!check_uart()) {
             hal.scheduler->delay(1);
