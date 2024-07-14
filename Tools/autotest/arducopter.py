@@ -6168,8 +6168,11 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         esc_hz = self.get_average_esc_frequency()
         esc_peakdb1 = psd["X"][int(esc_hz)]
 
-        # now add notch-per motor and check that the peak is squashed
-        self.set_parameter("INS_HNTCH_OPTS", 2)
+        # now add notch-per motor at f/4 and check that the peak is squashed
+        self.set_parameters({
+            "INS_HNTCH_OPTS": 2,
+            "INS_HNTCH_BW": 20,
+        })
         self.reboot_sitl()
 
         freq, hover_throttle, peakdb2, psd = \
@@ -6196,6 +6199,8 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         try:
             self.progress("Flying Octacopter with ESC telemetry driven dynamic notches")
             self.set_parameter("INS_HNTCH_OPTS", 0)
+            self.set_parameter("INS_HNTCH_BW", 40)
+
             self.customise_SITL_commandline(
                 [],
                 defaults_filepath=','.join(self.model_defaults_filepath("octa")),
@@ -6208,8 +6213,11 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             esc_peakdb1 = psd["X"][int(esc_hz)]
 
             # now add notch-per motor and check that the peak is squashed
-            self.set_parameter("INS_HNTCH_HMNCS", 1)
-            self.set_parameter("INS_HNTCH_OPTS", 2)
+            self.set_parameters({
+                "INS_HNTCH_OPTS": 2,
+                "INS_HNTCH_BW": 20,
+                "INS_HNTCH_HMNCS": 1
+            })
             self.reboot_sitl()
 
             freq, hover_throttle, peakdb2, psd = \
