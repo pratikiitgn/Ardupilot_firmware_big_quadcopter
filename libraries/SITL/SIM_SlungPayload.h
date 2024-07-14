@@ -67,6 +67,9 @@ private:
     // vehicle position, velocity and acceleration should be in earth-frame NED frame
     void update_payload(const Vector3p& veh_pos, const Vector3f& veh_vel_ef, const Vector3f& veh_accel_ef, float dt);
 
+    // returns true if the two vectors point in the same direction, false if perpendicular or opposite
+    bool vectors_same_direction(const Vector3f& v1, const Vector3f& v2) const;
+
     // socket connection variables
     const char *target_address = "127.0.0.1";
     const uint16_t target_port = 5763;

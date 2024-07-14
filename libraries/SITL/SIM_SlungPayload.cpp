@@ -345,8 +345,15 @@ void SlungPayloadSim::update_payload(const Vector3p& veh_pos, const Vector3f& ve
                 tension_force_NED += -force_gravity_NED.projected(payload_to_veh_norm);
             }
 
-            // tension resists vehicle acceleration
-            // tension_force_NED += (-veh_accel_ef * weight_kg).projected(payload_to_veh_norm);
+            // calculate tension force resulting from velocity difference between vehicle and payload
+            // use time constant to convert velocity to acceleration
+            const float velocity_to_accel_TC = 2.0;
+            Vector3f velocity_diff_NED = (veh_vel_ef - velocity_NED).projected(payload_to_veh_norm);
+
+            // add to tension force if the vehicle is moving faster than the payload
+            if (vectors_same_direction(velocity_diff_NED, payload_to_veh_norm)) {
+                tension_force_NED += velocity_diff_NED / velocity_to_accel_TC * weight_kg;
+            }
 
             // tension force resisting payload drag
             tension_force_NED += -force_drag_NED.projected(payload_to_veh_norm);
@@ -373,6 +380,16 @@ void SlungPayloadSim::update_payload(const Vector3p& veh_pos, const Vector3f& ve
         accel_NED.z = MIN(accel_NED.z, 0);
         // should probably zero out forces_ef vertical component as well?
     }
+}
+
+// returns true if the two vectors point in the same direction, false if perpendicular or opposite
+bool SlungPayloadSim::vectors_same_direction(const Vector3f& v1, const Vector3f& v2) const
+{
+    // check both vectors are non-zero
+    if (v1.is_zero() || v2.is_zero()) {
+        return false;
+    }
+    return v1.dot(v2) > 0;
 }
 
 #endif
