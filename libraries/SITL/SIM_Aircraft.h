@@ -321,6 +321,9 @@ protected:
     void add_shove_forces(Vector3f &rot_accel, Vector3f &body_accel);
     void add_twist_forces(Vector3f &rot_accel);
 
+    // add body-frame force due to slung payload
+    void add_slungpayload_forces(Vector3f &body_accel);
+
     // get local thermal updraft
     float get_local_updraft(const Vector3d &currentPos);
 
