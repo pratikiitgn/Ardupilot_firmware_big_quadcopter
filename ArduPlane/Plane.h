@@ -210,6 +210,15 @@ private:
     AP_FixedWing::Rangefinder_State rangefinder_state;
 #endif
 
+    struct {
+        // allow for external height above ground estimate
+        float hagl;
+        uint32_t last_update_ms;
+        uint32_t timeout_ms;
+    } external_hagl;
+    bool get_external_HAGL(float &height_agl);
+    float get_landing_height(bool &using_rangefinder);
+
 #if AP_RPM_ENABLED
     AP_RPM rpm_sensor;
 #endif
@@ -840,6 +849,7 @@ private:
     };
     static const TerrainLookupTable Terrain_lookup[];
 #endif
+    void handle_external_hagl(const mavlink_command_int_t &packet);
 
     // Attitude.cpp
     void adjust_nav_pitch_throttle(void);
